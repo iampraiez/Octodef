@@ -1,152 +1,30 @@
 "use client";
 export const dynamic = "force-dynamic";
 
-import { useState, useEffect } from "react";
 import { ThreatInputForm } from "@/components/ThreatInputForm";
 import { AgentProgressBar } from "@/components/AgentProgressBar";
 import { ThreatGraph } from "@/components/ThreatGraph";
 import { ResultsCard } from "@/components/ResultsCard";
-import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { AttackSimulation3D } from "@/components/AttackSimulation3D";
-import {
-  useDefendMutation,
-  useSimulateAttackMutation,
-} from "@/hooks/defenseQueries";
-import { ThreatInput, AgentStatus, DefenseResult } from "@/types/types";
-import { AGENTS } from "@/lib/mockData";
-import { toast } from "sonner";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useDashboardState } from "@/hooks/useDashboardState";
 
 export default function DashboardPage() {
-  const [agents, setAgents] = useState<AgentStatus[]>(
-    AGENTS.map((agent) => ({ ...agent, status: "idle" as const, progress: 0 }))
-  );
-  const [result, setResult] = useState<DefenseResult | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const router = useRouter();
-
-  useEffect(() => {
-    setLoading(true);
-    async function fetchSession() {
-      const session = await getSession();
-      if (!session) {
-        router.push("/auth/signin");
-        return;
-      }
-      setLoading(false);
-    }
-    fetchSession();
-  }, [router]);
-
-  const defendMutation = useDefendMutation();
-  const simulateMutation = useSimulateAttackMutation();
-
-  const isProcessing = defendMutation.isPending || simulateMutation.isPending;
-
-  // Fake simulation removed - using real-time stream
-  useEffect(() => {
-    if (isProcessing && !defendMutation.isPending) {
-        // Only run fake simulation for "Simulate Attack" button which doesn't stream yet
-        // Or if we want to simulate for the `simulateMutation`
-        if (simulateMutation.isPending) {
-             // Keep fake simulation logic JUST for simulateMutation if needed
-             // For now, let's just let simulateMutation return and show result
-             // Or we can leave it empty if we don't want fake bars.
-        } 
-    }
-  }, [isProcessing, simulateMutation.isPending]);
-
-  useEffect(() => {
-    if (defendMutation.isSuccess && defendMutation.data) {
-      setResult(defendMutation.data);
-      toast.success("Threat analysis complete!");
-    }
-  }, [defendMutation.isSuccess, defendMutation.data]);
-
-  useEffect(() => {
-    if (simulateMutation.isSuccess && simulateMutation.data) {
-      setResult(simulateMutation.data);
-      toast.success("Simulated attack analyzed!");
-    }
-  }, [simulateMutation.isSuccess, simulateMutation.data]);
-
-  const handleDefend = (input: ThreatInput) => {
-    setResult(null);
-    setAgents(
-        AGENTS.map((agent) => ({ ...agent, status: "processing", progress: 0 }))
-    );
-    
-    // reset to idle initially, but we want to show 'processing' immediately?
-    // Actually the stream will update them.
-
-    defendMutation.mutate({
-        input,
-        onProgress: (partialResult) => {
-             // Merge partial result into agents state
-             if (partialResult.agents) {
-                 setAgents(prev => {
-                     // We need to map over AGENTS (static) or prev
-                     const newAgents = [...prev];
-                     partialResult.agents.forEach(updatedAgent => {
-                         const idx = newAgents.findIndex(a => a.id === updatedAgent.id);
-                         if (idx !== -1) {
-                             newAgents[idx] = { ...newAgents[idx], ...updatedAgent };
-                         }
-                     });
-                     return newAgents;
-                 });
-             }
-             if (partialResult.findings || partialResult.overallRisk !== undefined) {
-                 setResult(prev => {
-                     if (!prev) {
-                         // If no result yet, maybe create a partial one? 
-                         // Or just wait for success? 
-                         // But we want to show findings live.
-                         // Let's cast partialResult to DefenseResult for now if needed, 
-                         // but better to just merge if prev exists.
-                         return { 
-                             ...partialResult,
-                             // Defaults for required fields if missing in partial
-                             threatMap: partialResult.threatMap || [],
-                             timeline: partialResult.timeline || [],
-                             agents: partialResult.agents || [],
-                             findings: partialResult.findings || [],
-                             input: { type: input.type, data: typeof input.data === 'string' ? input.data : "" },
-                             overallRisk: partialResult.overallRisk || 0,
-                             severity: partialResult.severity || "low",
-                             remediationSteps: partialResult.remediationSteps || [],
-                             status: partialResult.status || "processing"
-                         } as DefenseResult;
-                     }
-                     return { ...prev, ...partialResult } as DefenseResult;
-                 });
-             }
-        }
-    });
-  };
-
-  const handleSimulate = () => {
-    simulateMutation.mutate();
-  };
-
-  if (loading)
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <LoadingSpinner message="Loading session..." />
-      </div>
-    );
+  const { agents, result, isProcessing, handleDefend, handleSimulate } =
+    useDashboardState();
 
   return (
-    <div className="min-h-screen bg-black pt-24 pb-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-4xl text-white mb-2">Defense Dashboard</h1>
-          <p className="text-gray-400">
-            Input threat data to activate the 8-agent defense system
-          </p>
-        </div>
+    <ErrorBoundary>
+      <div className="min-h-screen bg-black pt-24 pb-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-8">
+            <h1 className="text-4xl text-white mb-2">Defense Dashboard</h1>
+            <p className="text-gray-400">
+              Input threat data to activate the 8-agent defense system
+            </p>
+          </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-[600px]">
           <div className="lg:col-span-1 space-y-6">
@@ -256,6 +134,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }

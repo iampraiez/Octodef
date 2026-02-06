@@ -39,8 +39,8 @@ const defendThreat = async (
           const update = JSON.parse(line);
           lastResult = update;
           if (onProgress) onProgress(update);
-        } catch (e) {
-          console.error("Error parsing stream chunk", e);
+        } catch {
+          console.error("Error parsing stream chunk");
         }
       }
     }
@@ -51,7 +51,7 @@ const defendThreat = async (
           const update = JSON.parse(buffer);
           lastResult = update;
           if (onProgress) onProgress(update);
-      } catch (e) { /* ignore */ }
+      } catch { /* ignore */ }
   }
 
   if (!lastResult) throw new Error("No data received");

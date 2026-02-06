@@ -4,7 +4,9 @@ import "./globals.css";
 import QueryProvider from "@/hooks/QueryClientProvider";
 import { Toaster } from "@/components/ui/sonner";
 import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
+import { env } from "@/config/env";
+import { Analytics } from "@vercel/analytics/react";
+import { FeedbackWidget } from "@/components/FeedbackWidget";
 
 const inter = Inter({
   variable: "--font-inter-sans",
@@ -38,13 +40,19 @@ export const metadata: Metadata = {
   authors: [{ name: "Praise Olaoye", url: "https://github.com/satoru707" }],
   creator: "Praise Olaoye",
   publisher: "Praise Olaoye",
-  metadataBase: new URL(`${process.env.NEXTAUTH_URL}`),
+  metadataBase: new URL(
+    env.data?.NODE_ENV === "production"
+      ? "https://octodef.vercel.app"
+      : "http://localhost:3000"
+  ),
 
   openGraph: {
     title: "OctoDef — Cybersecurity Defense Simulator",
     description:
       "Train your digital defense instincts through an immersive simulation inspired by the octopus.",
-    url: `${process.env.NEXTAUTH_URL}`,
+    url: env.data?.NODE_ENV === "production"
+      ? "https://octodef.vercel.app"
+      : "http://localhost:3000",
     siteName: "OctoDef",
     images: [
       {
@@ -87,7 +95,6 @@ export default function RootLayout({
           <div className="dark min-h-screen flex flex-col bg-black">
             <Header />
             <main className="flex-1">{children}</main>
-            <Footer />
             <Toaster
               position="top-right"
               toastOptions={{
@@ -98,6 +105,8 @@ export default function RootLayout({
                 },
               }}
             />
+            <FeedbackWidget />
+            <Analytics />
           </div>
         </body>
       </QueryProvider>

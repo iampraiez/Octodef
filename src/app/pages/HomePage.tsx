@@ -1,20 +1,16 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
-import type { Session } from "next-auth";
+import { useRef } from "react";
 import Link from "next/link";
-import { Zap, Brain, Lock, CheckCircle2, Sparkles } from "lucide-react";
+import { Zap, Brain, Lock, Sparkles, Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getSession } from "next-auth/react";
 import { OctoDefenderLogo } from "@/components/OctoDefenderLogo";
 import { motion, useInView, useScroll, useTransform } from "framer-motion";
 import { Shield } from "@phosphor-icons/react";
 
 export const HomePage = () => {
-  const [session, setSession] = useState<Session | null>(null);
   const heroRef = useRef<HTMLDivElement>(null);
   const featuresRef = useRef(null);
   const agentsRef = useRef(null);
-  const ctaRef = useRef(null);
 
   const heroInView = useInView(heroRef, { once: true, margin: "-100px" });
   const featuresInView = useInView(featuresRef, {
@@ -22,19 +18,10 @@ export const HomePage = () => {
     margin: "-100px",
   });
   const agentsInView = useInView(agentsRef, { once: true, margin: "-100px" });
-  const ctaInView = useInView(ctaRef, { once: true, margin: "-100px" });
 
   const { scrollYProgress } = useScroll({ target: heroRef });
   const parallaxY = useTransform(scrollYProgress, [0, 1], [0, -100]);
   const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0.3]);
-
-  useEffect(() => {
-    async function fetchSession() {
-      const session = await getSession();
-      setSession(session);
-    }
-    fetchSession();
-  }, []);
 
   const features = [
     {
@@ -150,33 +137,21 @@ export const HomePage = () => {
               transition={{ duration: 0.6, delay: 0.8 }}
               className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4"
             >
-              {!!session ? (
-                <Button
-                  asChild
-                  size="lg"
-                  className="bg-blue-600 hover:bg-blue-500 text-white rounded-full px-8 h-12 text-base font-medium shadow-[0_0_40px_-10px_rgba(37,99,235,0.5)] transition-all duration-300 hover:scale-105"
-                >
-                  <Link href="/dashboard">Launch Dashboard</Link>
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    asChild
-                    size="lg"
-                    className="bg-white text-black hover:bg-gray-200 rounded-full px-8 h-12 text-base font-medium transition-all duration-300 hover:scale-105"
-                  >
-                    <Link href="/auth/signin">Get Started</Link>
-                  </Button>
-                  <Button
-                    asChild
-                    size="lg"
-                    variant="ghost"
-                    className="text-gray-400 hover:text-white hover:bg-white/5 rounded-full px-8 h-12 text-base font-medium"
-                  >
-                    <Link href="/about">How it works</Link>
-                  </Button>
-                </>
-              )}
+              <Button
+                asChild
+                size="lg"
+                className="bg-blue-600 hover:bg-blue-500 text-white rounded-full px-8 h-12 text-base font-medium shadow-[0_0_40px_-10px_rgba(37,99,235,0.5)] transition-all duration-300 hover:scale-105"
+              >
+                <Link href="/dashboard">Launch Dashboard</Link>
+              </Button>
+              <Button
+                asChild
+                size="lg"
+                variant="ghost"
+                className="text-gray-400 hover:text-white hover:bg-white/5 rounded-full px-8 h-12 text-base font-medium"
+              >
+                <Link href="/about">How it works</Link>
+              </Button>
             </motion.div>
           </div>
         </div>
@@ -264,34 +239,41 @@ export const HomePage = () => {
         </div>
       </section>
 
-      {!session && (
-        <section ref={ctaRef} className="py-24 border-t border-white/5">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={ctaInView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.6 }}
-              className="relative p-12 rounded-3xl bg-gradient-to-b from-[#111] to-black border border-white/10 overflow-hidden"
-            >
-              <div className="relative z-10">
-                <h2 className="text-4xl text-white font-bold mb-6">
-                  Ready to secure your infrastructure?
-                </h2>
-                <p className="text-gray-400 mb-8 max-w-xl mx-auto text-lg">
-                  Join the next generation of cybersecurity. Free for checking simple threats, powerful for enterprise needs.
-                </p>
-                <Button
-                    asChild
-                    size="lg"
-                    className="bg-white text-black hover:bg-gray-200 rounded-full px-10 h-14 text-lg font-medium transition-all duration-300 hover:scale-105"
-                  >
-                    <Link href="/auth/signin">Start Defending Now</Link>
-                  </Button>
-              </div>
-            </motion.div>
+      {/* Footer */}
+      <footer className="border-t border-white/5 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-3">
+              <OctoDefenderLogo className="w-8 h-8" showText={false} animated={false} />
+              <span className="text-gray-400 text-sm">&copy; 2026 OctoDefender. All rights reserved.</span>
+            </div>
+            
+            <div className="flex items-center gap-6">
+              <a
+                href="https://github.com/iampraiez/Octodef"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+              >
+                <Github className="w-5 h-5" />
+                <span className="text-sm">GitHub</span>
+              </a>
+              
+              <a
+                href="https://iampraiez.vercel.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors group"
+              >
+                <div className="w-6 h-6 rounded-full bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+                </div>
+                <span className="text-sm">Creator</span>
+              </a>
+            </div>
           </div>
-        </section>
-      )}
+        </div>
+      </footer>
     </div>
   );
 };

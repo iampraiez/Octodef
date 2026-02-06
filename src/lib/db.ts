@@ -1,7 +1,8 @@
 import { MongoClient, ServerApiVersion } from "mongodb";
 import type { DefenseResult, User } from "@/types/types";
+import { env } from "@/config/env";
 
-const uri = process.env.MONGODB_URI!;
+const uri = env.data?.MONGODB_URI;
 if (!uri) throw new Error("Missing MONGODB_URI environment variable");
 
 const options = {
@@ -19,7 +20,7 @@ declare global {
   var _mongoClientPromise: Promise<MongoClient> | undefined;
 }
 
-if (process.env.NODE_ENV === "development") {
+if (env.data?.NODE_ENV === "development") {
   if (!global._mongoClientPromise) {
     client = new MongoClient(uri, options);
     global._mongoClientPromise = client.connect();
@@ -42,5 +43,6 @@ export async function getCollections() {
   return {
     defenseResultCollection: db.collection<DefenseResult>("defenseResults"),
     userCollection: db.collection<User>("users"),
+    feedbackCollection: db.collection("feedback"),
   };
 }

@@ -1,40 +1,18 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { getSession, signOut } from "next-auth/react";
-import type { Session } from "next-auth";
 import { OctoDefenderLogo } from "./OctoDefenderLogo";
 import { usePathname } from "next/navigation";
 
 export const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [session, setSession] = useState<null | Session>(null);
   const pathname = usePathname();
 
-  useEffect(() => {
-    async function fetchSession() {
-      const session = await getSession();
-      setSession(session);
-    }
-    fetchSession();
-  }, []);
-  const handleSignOut = async () => {
-    await signOut();
-    window.location.href = "/";
-  };
-
-  const navLinks = !!session
-    ? [
-        { name: "Dashboard", path: "/dashboard" },
-        { name: "Profile", path: "/profile" },
-        { name: "About", path: "/about" },
-      ]
-    : [
-        { name: "About", path: "/about" },
-        { name: "Sign In", path: "/auth/signin" },
-      ];
+  const navLinks = [
+    { name: "Dashboard", path: "/dashboard" },
+    { name: "About", path: "/about" },
+  ];
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-xl border-b border-[#1e3a8a]/20">
@@ -62,15 +40,6 @@ export const Header = () => {
                 {link.name}
               </Link>
             ))}
-            {!!session && (
-              <Button
-                onClick={handleSignOut}
-                variant="outline"
-                className="border-[#1e3a8a] text-white hover:bg-[#1e3a8a]/20"
-              >
-                Sign Out
-              </Button>
-            )}
           </div>
 
           <button
@@ -93,7 +62,7 @@ export const Header = () => {
                 key={link.path}
                 href={link.path}
                 className={`block py-3 text-sm transition-colors ${
-                  location.pathname === link.path
+                  pathname === link.path
                     ? "text-white"
                     : "text-gray-400 hover:text-white"
                 }`}
@@ -102,18 +71,6 @@ export const Header = () => {
                 {link.name}
               </Link>
             ))}
-            {!!session && (
-              <Button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  handleSignOut();
-                }}
-                variant="outline"
-                className="w-full mt-4 border-[#1e3a8a] text-white hover:bg-[#1e3a8a]/20"
-              >
-                Sign Out
-              </Button>
-            )}
           </div>
         )}
       </nav>

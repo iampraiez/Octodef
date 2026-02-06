@@ -36,7 +36,12 @@ export interface DefenseResult {
   threatMap: ThreatMapData[];
   timeline: TimelineEvent[];
   status: "pending" | "processing" | "complete" | "failed";
-  userId: string;
+  // User tracking (fingerprint-based, no authentication)
+  userFingerprint?: string;
+  ip?: string;
+  userAgent?: string;
+  // Legacy field for backward compatibility
+  userId?: string;
 }
 
 export interface Finding {
