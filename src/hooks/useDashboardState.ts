@@ -76,8 +76,8 @@ export function useDashboardState() {
           });
         }
         
-        // Update result with partial data
-        if (partialResult.findings || partialResult.overallRisk !== undefined) {
+        // Update result with partial data (including final ID update)
+        if (partialResult.findings || partialResult.overallRisk !== undefined || partialResult._id) {
           setResult((prev) => {
             if (!prev) {
               return {
@@ -96,7 +96,13 @@ export function useDashboardState() {
                 status: partialResult.status || "processing",
               } as DefenseResult;
             }
-            return { ...prev, ...partialResult } as DefenseResult;
+            // Merge carefully
+            return { 
+                ...prev, 
+                ...partialResult,
+                // Ensure array fields don't accidentally become undefined if missing in partial
+                findings: partialResult.findings || prev.findings || []
+            } as DefenseResult;
           });
         }
       },

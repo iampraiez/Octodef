@@ -58,9 +58,9 @@ export const ResultsCard = ({ result }: ResultsCardProps) => {
     toast.success("Secure link copied");
   };
 
-  const criticalFindings = result.findings.filter(f => f.type === 'critical' || f.type === 'error');
-  const warningFindings = result.findings.filter(f => f.type === 'warning');
-  const infoFindings = result.findings.filter(f => f.type === 'info');
+  const criticalFindings = (result.findings || []).filter(f => f.type === 'critical' || f.type === 'error');
+  const warningFindings = (result.findings || []).filter(f => f.type === 'warning');
+  const infoFindings = (result.findings || []).filter(f => f.type === 'info');
 
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-700">
@@ -80,17 +80,17 @@ export const ResultsCard = ({ result }: ResultsCardProps) => {
                     strokeWidth="8" 
                     fill="none" 
                     strokeDasharray={377} 
-                    strokeDashoffset={377 - (377 * result.overallRisk) / 100}
+                    strokeDashoffset={377 - (377 * (result.overallRisk || 0)) / 100}
                     className={`${sev.color} transition-all duration-1000 ease-out`}
                   />
                </svg>
                <div className="absolute flex flex-col items-center">
-                 <span className={`text-4xl font-bold ${sev.color}`}>{result.overallRisk}</span>
+                 <span className={`text-4xl font-bold ${sev.color}`}>{result.overallRisk || 0}</span>
                  <span className="text-xs text-gray-500">RISK SCORE</span>
                </div>
             </div>
             <Badge variant="outline" className={`${sev.color} ${sev.border} bg-transparent`}>
-               {result.severity.toUpperCase()} ILLEGALITY
+               {(result.severity || 'unknown').toUpperCase()} THREAT
             </Badge>
           </div>
         </Card>
@@ -123,8 +123,8 @@ export const ResultsCard = ({ result }: ResultsCardProps) => {
                  <div className="bg-[#111] p-3 rounded-lg border border-[#222]">
                     <p className="text-gray-400 text-xs uppercase mb-1">Threat Vector</p>
                     <div className="flex items-center gap-2 text-white">
-                       {result.input.type === 'url' ? <ExternalLink className="w-4 h-4 text-blue-400"/> : <Terminal className="w-4 h-4 text-green-400"/>}
-                       <span className="truncate font-mono text-sm">{result.input.data}</span>
+                       {result.input?.type === 'url' ? <ExternalLink className="w-4 h-4 text-blue-400"/> : <Terminal className="w-4 h-4 text-green-400"/>}
+                       <span className="truncate font-mono text-sm">{result.input?.data || 'N/A'}</span>
                     </div>
                  </div>
                  <div className="bg-[#111] p-3 rounded-lg border border-[#222]">
@@ -169,7 +169,7 @@ export const ResultsCard = ({ result }: ResultsCardProps) => {
            {infoFindings.length > 0 && (
              <Section title="Informational" icon={Info} color="text-blue-500" findings={infoFindings} />
            )}
-           {result.findings.length === 0 && (
+           {(!result.findings || result.findings.length === 0) && (
              <div className="bg-[#0a0a0a] border border-green-900/30 rounded-lg p-8 md:p-12 text-center">
                 <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
                 <h3 className="text-white text-lg font-medium">No Threats Detected</h3>
@@ -181,7 +181,7 @@ export const ResultsCard = ({ result }: ResultsCardProps) => {
         {/* AGENTS TAB */}
         <TabsContent value="agents" className="mt-4">
            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {result.agents.map((agent) => (
+              {(result.agents || []).map((agent) => (
                 <Card key={agent.id} className="bg-[#0a0a0a] border-[#333]">
                    <CardContent className="p-4 space-y-2">
                       <div className="flex items-center justify-between">
@@ -203,7 +203,7 @@ export const ResultsCard = ({ result }: ResultsCardProps) => {
            <Card className="bg-[#0a0a0a] border-[#333]">
              <CardContent className="p-4 md:p-6">
                 <ol className="relative border-l border-gray-800 ml-3 my-2">                  
-                  {result.remediationSteps.map((step, i) => (
+                  {(result.remediationSteps || []).map((step, i) => (
                     <li key={i} className="mb-8 ml-6 last:mb-0">            
                         <span className="absolute flex items-center justify-center w-6 h-6 bg-blue-900 rounded-full -left-3 ring-4 ring-black">
                              <span className="text-xs text-blue-200">{i+1}</span>
@@ -212,7 +212,7 @@ export const ResultsCard = ({ result }: ResultsCardProps) => {
                         <p className="text-sm md:text-base font-normal text-gray-400">{step}</p>
                     </li>
                   ))}
-                  {result.remediationSteps.length === 0 && (
+                  {(!result.remediationSteps || result.remediationSteps.length === 0) && (
                      <li className="ml-6">
                         <h3 className="text-white">No remediation required.</h3>
                         <p className="text-gray-500">System is secure.</p>
