@@ -25,18 +25,27 @@ export async function runRemediator(context: AgentContext): Promise<AgentRespons
       }
   }
 
-  // 2. Investigation Actions
-  const criticalFindings = previousFindings.filter(f => f.type === "critical");
-  if (criticalFindings.length > 0) {
-      remediationSteps.push(`4. Investigate specific critical alert: "${criticalFindings[0].message}"`);
+  // 2. Dynamic Investigation Actions based on specific findings
+  const allMessages = previousFindings.map(f => f.message.toLowerCase()).join(" ");
+
+  if (allMessages.includes("malware") || allMessages.includes("virus")) {
+      remediationSteps.push("4. Quarantine endpoint immediately (Malware detection).");
+      remediationSteps.push("5. Run full system anti-virus scan.");
+  } else if (allMessages.includes("phishing") || allMessages.includes("social engineering")) {
+      remediationSteps.push("4. Reset user credentials (potential compromise).");
+      remediationSteps.push("5. Review email logs for similar subject lines.");
+  } else if (allMessages.includes("botnet") || allMessages.includes("command and control")) {
+       remediationSteps.push("4. Block C2 communication at perimeter.");
+       remediationSteps.push("5. Capture network traffic for forensic analysis.");
   } else {
       remediationSteps.push("4. Monitor for recurrence over next 24h.");
   }
 
-  // 3. Long term
+  // 3. Long term / High Risk
   if (riskScore > 80) {
-      remediationSteps.push("5. Conduct full forensic image of affected systems.");
-      remediationSteps.push("6. Submit report to CISO / Compliance team.");
+      const timestamp = new Date().toISOString().split('T')[0];
+      remediationSteps.push(`6. Conduct full forensic image of affected systems (Incident #${timestamp}).`);
+      remediationSteps.push("7. Submit mandatory breach report to CISO / Compliance team.");
   }
 
   findings.push({

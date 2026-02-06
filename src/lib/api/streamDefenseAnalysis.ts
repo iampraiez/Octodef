@@ -33,7 +33,7 @@ export async function streamDefenseAnalysis(
 
         // Save final result to database
         try {
-          await saveDefenseResult(
+          const insertedId = await saveDefenseResult(
             {
               ...finalResult,
               timestamp: new Date().toISOString(),
@@ -42,6 +42,10 @@ export async function streamDefenseAnalysis(
             trackingData.ip,
             trackingData.userAgent
           );
+
+          // Send final ID to client
+          const finalChunk = JSON.stringify({ _id: insertedId }) + "\n";
+          controller.enqueue(encoder.encode(finalChunk));
         } catch (dbError) {
           console.error("Failed to save result, but analysis completed:", dbError);
           // Don't fail the stream if DB save fails

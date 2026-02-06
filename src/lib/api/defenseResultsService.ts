@@ -9,17 +9,19 @@ export async function saveDefenseResult(
   userFingerprint?: string,
   ip?: string,
   userAgent?: string
-): Promise<void> {
+): Promise<string> {
   try {
     const { defenseResultCollection } = await getCollections();
     
-    await defenseResultCollection.insertOne({
+    const insertResult = await defenseResultCollection.insertOne({
       ...result,
       userFingerprint,
       ip,
       userAgent,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
+
+    return insertResult.insertedId.toString();
   } catch (error) {
     console.error("Failed to save defense result:", error);
     throw new Error("Database error: Failed to save result");

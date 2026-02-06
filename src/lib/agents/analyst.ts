@@ -24,35 +24,49 @@ export async function runAnalyst(context: AgentContext): Promise<AgentResponse> 
         }
 
         if (endpoint) {
-            const res = await fetch(`https://www.virustotal.com/api/v3/${endpoint}`, {
-                headers: { 'x-apikey': key }
-            });
-            
-            if (res.ok) {
-                const json = await res.json();
-                const stats = json.data?.attributes?.last_analysis_stats;
-                if (stats) {
-                    const malicious = stats.malicious || 0;
-                    const suspicious = stats.suspicious || 0;
-                    
-                    if (malicious > 0 || suspicious > 0) {
-                        const score = Math.min((malicious * 10) + (suspicious * 5), 100);
-                        riskContribution += score;
-                        findings.push({
-                            agent: "Analyst",
-                            type: score > 20 ? "critical" : "warning",
-                            message: "VirusTotal Analysis Malicious",
-                            details: `${malicious} engines detected malware, ${suspicious} suspicious.`
-                        });
-                    } else {
-                         findings.push({
-                            agent: "Analyst",
-                            type: "info",
-                            message: "VirusTotal Analysis Clean",
-                            details: "No engines detected malicious activity"
-                        });
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
+            try {
+                const res = await fetch(`https://www.virustotal.com/api/v3/${endpoint}`, {
+                    headers: { 'x-apikey': key },
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                
+                if (res.ok) {
+                    const json = await res.json();
+                    const stats = json.data?.attributes?.last_analysis_stats;
+                    if (stats) {
+                        const malicious = stats.malicious || 0;
+                        const suspicious = stats.suspicious || 0;
+                        
+                        if (malicious > 0 || suspicious > 0) {
+                            const score = Math.min((malicious * 10) + (suspicious * 5), 100);
+                            riskContribution += score;
+                            findings.push({
+                                agent: "Analyst",
+                                type: score > 20 ? "critical" : "warning",
+                                message: "VirusTotal Analysis Malicious",
+                                details: `${malicious} engines detected malware, ${suspicious} suspicious.`
+                            });
+                        } else {
+                             findings.push({
+                                agent: "Analyst",
+                                type: "info",
+                                message: "VirusTotal Analysis Clean",
+                                details: "No engines detected malicious activity"
+                            });
+                        }
                     }
                 }
+            } catch {
+                clearTimeout(timeoutId);
+                findings.push({
+                    agent: "Analyst",
+                    type: "warning",
+                    message: "VT Analysis Skipped",
+                    details: "Connection to VirusTotal timed out."
+                });
             }
         }
       }
