@@ -6,10 +6,59 @@ import axios from "axios";
 
 const isClient = typeof window !== "undefined";
 
-const defendThreat = async (input: ThreatInput): Promise<DefenseResult> => {
-  const response = await axios.post(`/api/defend`, JSON.stringify(input));
-  return response.data;
+
+const defendThreat = async (
+  { input, onProgress }: { input: ThreatInput; onProgress?: (data: DefenseResult) => void }
+): Promise<DefenseResult> => {
+  const response = await fetch(`/api/defend`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok || !response.body) {
+     throw new Error(response.statusText);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let lastResult: DefenseResult | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || ""; // Keep incomplete line in buffer
+
+    for (const line of lines) {
+      if (line.trim()) {
+        try {
+          const update = JSON.parse(line);
+          lastResult = update;
+          if (onProgress) onProgress(update);
+        } catch (e) {
+          console.error("Error parsing stream chunk", e);
+        }
+      }
+    }
+  }
+
+  if (buffer.trim()) {
+      try {
+          const update = JSON.parse(buffer);
+          lastResult = update;
+          if (onProgress) onProgress(update);
+      } catch (e) { /* ignore */ }
+  }
+
+  if (!lastResult) throw new Error("No data received");
+  return lastResult;
 };
+
+
 
 const simulateAttack = async (): Promise<DefenseResult> => {
   const types: ThreatInput["type"][] = ["url", "ip", "hash", "log", "email"];
@@ -31,7 +80,7 @@ const simulateAttack = async (): Promise<DefenseResult> => {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve(generateMockDefenseResult(input));
-    }, 8000);
+    }, 2000);
   });
 };
 
@@ -70,6 +119,7 @@ export const useDefendMutation = () => {
     },
   });
 };
+
 
 export const useSimulateAttackMutation = () => {
   const queryClient = useQueryClient();

@@ -90,7 +90,8 @@ function updateAgent(
   id: string,
   status: AgentStatus["status"],
   progress: number,
-  res?: string
+  res?: string,
+  onProgress?: (result: Omit<DefenseResult, "_id" | "userId" | "timestamp">) => void
 ) {
   const a = result.agents.find((x) => x.id === id);
   if (a) {
@@ -98,19 +99,23 @@ function updateAgent(
     a.progress = progress;
     if (res) a.result = res;
   }
+  if (onProgress) onProgress(result);
 }
 
 function addFinding(
   result: Omit<DefenseResult, "_id" | "userId" | "timestamp">,
-  f: Finding
+  f: Finding,
+  onProgress?: (result: Omit<DefenseResult, "_id" | "userId" | "timestamp">) => void
 ) {
   result.findings.push(f);
   if (f.type === "critical") result.threatMap.forEach((t) => t.threats++);
+  if (onProgress) onProgress(result);
 }
 
 export async function analyzeThreat(
   input: string | Buffer,
-  type: ThreatType
+  type: ThreatType,
+  onProgress?: (result: Omit<DefenseResult, "_id" | "userId" | "timestamp">) => void
 ): Promise<Omit<DefenseResult, "_id" | "userId" | "timestamp">> {
   const start = Date.now();
   telemetry.analyses++;
@@ -136,20 +141,21 @@ export async function analyzeThreat(
     status: "processing",
   };
 
+
   Object.values(AGENTS).forEach((a) =>
     result.agents.push({ ...a, status: "processing", progress: 0 })
   );
-  updateAgent(result, "orchestrator", "processing", 0);
+  updateAgent(result, "orchestrator", "processing", 0, undefined, onProgress);
   addTimeline(result, "Orchestrator", "Defense AI Engine Started");
 
   try {
-    updateAgent(result, "scout", "processing", 10);
+    updateAgent(result, "scout", "processing", 10, undefined, onProgress);
     addTimeline(result, "Scout", "Recon started");
     result.input.type = type;
-    updateAgent(result, "scout", "complete", 100, `Type: ${type}`);
+    updateAgent(result, "scout", "complete", 100, `Type: ${type}`, onProgress);
     addTimeline(result, "Scout", `Classified as ${type}`);
 
-    updateAgent(result, "sentinel", "processing", 20);
+    updateAgent(result, "sentinel", "processing", 20, undefined, onProgress);
     addTimeline(result, "Sentinel", "Fetching threat intel");
     let intel: null | Omit<DefenseResult, "timestamp" | "_id" | "userId">;
     try {
@@ -184,12 +190,12 @@ export async function analyzeThreat(
         type: "error",
         message: "Intel fetch failed",
         details: String(err),
-      });
+      }, onProgress);
     }
-    updateAgent(result, "sentinel", "complete", 100);
+    updateAgent(result, "sentinel", "complete", 100, undefined, onProgress);
     addTimeline(result, "Sentinel", "Intel lookup complete");
 
-    updateAgent(result, "analyst", "processing", 40);
+    updateAgent(result, "analyst", "processing", 40, undefined, onProgress);
     addTimeline(result, "Analyst", "Running ML anomaly detection");
     if (type === "log" && typeof input === "string") {
       await ensureModel();
@@ -204,7 +210,7 @@ export async function analyzeThreat(
             type: "critical",
             message: `ML Anomaly Detected`,
             details: `${(anomalyRate * 100).toFixed(1)}% outlier rate`,
-          });
+          }, onProgress);
           result.threatMap[2].risk = boost;
           result.threatMap[2].threats = Math.round(
             anomalyRate * features.length
@@ -214,7 +220,7 @@ export async function analyzeThreat(
             agent: "Analyst",
             type: "info",
             message: "No anomalies",
-          });
+          }, onProgress);
         }
       }
     } else {
@@ -222,12 +228,12 @@ export async function analyzeThreat(
         agent: "Analyst",
         type: "info",
         message: "ML skipped (non-log)",
-      });
+      }, onProgress);
     }
-    updateAgent(result, "analyst", "complete", 100);
+    updateAgent(result, "analyst", "complete", 100, undefined, onProgress);
     addTimeline(result, "Analyst", "Anomaly scan complete");
 
-    updateAgent(result, "isolator", "processing", 60);
+    updateAgent(result, "isolator", "processing", 60, undefined, onProgress);
     result.overallRisk = Math.min(100, Math.round(result.overallRisk));
     result.severity =
       result.overallRisk >= 80
@@ -241,34 +247,34 @@ export async function analyzeThreat(
     result.threatMap[3].threats = result.findings.filter(
       (f) => f.type === "critical"
     ).length;
-    updateAgent(result, "isolator", "complete", 100);
+    updateAgent(result, "isolator", "complete", 100, undefined, onProgress);
     addTimeline(
       result,
       "Isolator",
       `Risk: ${result.overallRisk}% → ${result.severity}`
     );
 
-    updateAgent(result, "remediator", "processing", 70);
+    updateAgent(result, "remediator", "processing", 70, undefined, onProgress);
     result.remediationSteps = generateRemediation(result.severity, type);
-    updateAgent(result, "remediator", "complete", 100);
+    updateAgent(result, "remediator", "complete", 100, undefined, onProgress);
     addTimeline(result, "Remediator", "Playbook generated");
 
-    updateAgent(result, "learner", "processing", 80);
+    updateAgent(result, "learner", "processing", 80, undefined, onProgress);
     if (result.severity === "critical" || result.severity === "high") {
       const adaptiveData = generateAdaptiveData(result.findings);
       lofRegistry.adaptive.train(adaptiveData);
-      updateAgent(result, "learner", "complete", 100, `Model updated`);
+      updateAgent(result, "learner", "complete", 100, `Model updated`, onProgress);
     } else {
-      updateAgent(result, "learner", "complete", 100, "No update");
+      updateAgent(result, "learner", "complete", 100, "No update", onProgress);
     }
     addTimeline(result, "Learner", "Model adapted");
 
-    updateAgent(result, "alerter", "processing", 90);
+    updateAgent(result, "alerter", "processing", 90, undefined, onProgress);
     if (result.severity === "critical") {
       await sendAlert(result);
       addTimeline(result, "Alerter", "Alert sent");
     }
-    updateAgent(result, "alerter", "complete", 100);
+    updateAgent(result, "alerter", "complete", 100, undefined, onProgress);
 
     result.status = "complete";
     const latency = Date.now() - start;
@@ -284,11 +290,11 @@ export async function analyzeThreat(
       type: "error",
       message: "Analysis failed",
       details: String(err),
-    });
+    }, onProgress);
     addTimeline(result, "Orchestrator", "Failed");
     result.agents.forEach((a) => {
       if (a.status === "processing")
-        updateAgent(result, a.id, "error", a.progress);
+        updateAgent(result, a.id, "error", a.progress, undefined, onProgress);
     });
   }
 
@@ -296,7 +302,9 @@ export async function analyzeThreat(
     result,
     "orchestrator",
     result.status === "complete" ? "complete" : "error",
-    100
+    100,
+    undefined,
+    onProgress
   );
   return result;
 }

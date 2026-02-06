@@ -45,54 +45,18 @@ export default function DashboardPage() {
 
   const isProcessing = defendMutation.isPending || simulateMutation.isPending;
 
+  // Fake simulation removed - using real-time stream
   useEffect(() => {
-    if (isProcessing) {
-      setResult(null);
-
-      setAgents(
-        AGENTS.map((agent) => ({
-          ...agent,
-          status: "idle" as const,
-          progress: 0,
-        }))
-      );
-
-      const agentDuration = 1000;
-
-      AGENTS.forEach((agent, index) => {
-        setTimeout(() => {
-          setAgents((prev) =>
-            prev.map((a, i) =>
-              i === index
-                ? { ...a, status: "processing" as const, progress: 0 }
-                : a
-            )
-          );
-
-          const progressInterval = setInterval(() => {
-            setAgents((prev) =>
-              prev.map((a, i) =>
-                i === index && a.progress < 100
-                  ? { ...a, progress: Math.min(a.progress + 10, 100) }
-                  : a
-              )
-            );
-          }, agentDuration / 10);
-
-          setTimeout(() => {
-            clearInterval(progressInterval);
-            setAgents((prev) =>
-              prev.map((a, i) =>
-                i === index
-                  ? { ...a, status: "complete" as const, progress: 100 }
-                  : a
-              )
-            );
-          }, agentDuration);
-        }, index * agentDuration);
-      });
+    if (isProcessing && !defendMutation.isPending) {
+        // Only run fake simulation for "Simulate Attack" button which doesn't stream yet
+        // Or if we want to simulate for the `simulateMutation`
+        if (simulateMutation.isPending) {
+             // Keep fake simulation logic JUST for simulateMutation if needed
+             // For now, let's just let simulateMutation return and show result
+             // Or we can leave it empty if we don't want fake bars.
+        } 
     }
-  }, [isProcessing]);
+  }, [isProcessing, simulateMutation.isPending]);
 
   useEffect(() => {
     if (defendMutation.isSuccess && defendMutation.data) {
@@ -109,7 +73,58 @@ export default function DashboardPage() {
   }, [simulateMutation.isSuccess, simulateMutation.data]);
 
   const handleDefend = (input: ThreatInput) => {
-    defendMutation.mutate(input);
+    setResult(null);
+    setAgents(
+        AGENTS.map((agent) => ({ ...agent, status: "processing", progress: 0 }))
+    );
+    
+    // reset to idle initially, but we want to show 'processing' immediately?
+    // Actually the stream will update them.
+
+    defendMutation.mutate({
+        input,
+        onProgress: (partialResult) => {
+             // Merge partial result into agents state
+             if (partialResult.agents) {
+                 setAgents(prev => {
+                     // We need to map over AGENTS (static) or prev
+                     const newAgents = [...prev];
+                     partialResult.agents.forEach(updatedAgent => {
+                         const idx = newAgents.findIndex(a => a.id === updatedAgent.id);
+                         if (idx !== -1) {
+                             newAgents[idx] = { ...newAgents[idx], ...updatedAgent };
+                         }
+                     });
+                     return newAgents;
+                 });
+             }
+             if (partialResult.findings || partialResult.overallRisk !== undefined) {
+                 setResult(prev => {
+                     if (!prev) {
+                         // If no result yet, maybe create a partial one? 
+                         // Or just wait for success? 
+                         // But we want to show findings live.
+                         // Let's cast partialResult to DefenseResult for now if needed, 
+                         // but better to just merge if prev exists.
+                         return { 
+                             ...partialResult,
+                             // Defaults for required fields if missing in partial
+                             threatMap: partialResult.threatMap || [],
+                             timeline: partialResult.timeline || [],
+                             agents: partialResult.agents || [],
+                             findings: partialResult.findings || [],
+                             input: { type: input.type, data: typeof input.data === 'string' ? input.data : "" },
+                             overallRisk: partialResult.overallRisk || 0,
+                             severity: partialResult.severity || "low",
+                             remediationSteps: partialResult.remediationSteps || [],
+                             status: partialResult.status || "processing"
+                         } as DefenseResult;
+                     }
+                     return { ...prev, ...partialResult } as DefenseResult;
+                 });
+             }
+        }
+    });
   };
 
   const handleSimulate = () => {

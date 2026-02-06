@@ -26,6 +26,7 @@ export async function analyzeThreat(
   try {
     await runGoogleSafeBrowsingAgent(result, input);
     await runVirusTotalV3Agent(result, input);
+    await runHeuristicAgent(result, input);
 
     calculateFinalRisk(result);
     generateRemediationSteps(result);
@@ -307,6 +308,104 @@ async function runVirusTotalV3Agent(
       type: "warning",
       message: "VirusTotal API failed",
       details: err instanceof Error ? err.message : "Unknown error",
+    });
+  }
+}
+
+async function runHeuristicAgent(
+  result: Omit<DefenseResult, "timestamp" | "_id" | "userId">,
+  input: string
+) {
+  const agent: AgentStatus = {
+    id: "heuristic",
+    name: "Heuristic Analyzer",
+    description: "Static pattern analysis (No-Cost)",
+    status: "processing",
+    progress: 0,
+  };
+  result.agents.push(agent);
+  addTimelineEvent(result, "Heuristic analysis started", agent.name);
+
+  try {
+    const url = new URL(input);
+    let risk = 0;
+    const findings: string[] = [];
+
+    // Check 1: IP Address Hostname
+    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(url.hostname)) {
+      risk += 25;
+      findings.push("URL uses IP address instead of domain name");
+    }
+
+    // Check 2: Punycode (Homograph attack potential)
+    if (url.hostname.startsWith("xn--")) {
+      risk += 20;
+      findings.push("Punycode domain detected (potential homograph attack)");
+    }
+
+    // Check 3: Suspicious TLDs
+    const suspiciousTLDs = [".xyz", ".top", ".gq", ".ml", ".cf", ".tk", ".pw", ".cc", ".cn", ".ru", ".site", ".click"];
+    if (suspiciousTLDs.some(tld => url.hostname.endsWith(tld))) {
+      risk += 15;
+      findings.push("Suspicious TLD detected");
+    }
+
+    // Check 4: Excessive Subdomains
+    const parts = url.hostname.split(".");
+    if (parts.length > 4) {
+      risk += 10;
+      findings.push("Excessive subdomains detected");
+    }
+
+    // Check 5: Sensitive keywords in non-HTTPS
+    const sensitive = ["login", "bank", "account", "secure", "verify", "update", "signin"];
+    if (url.protocol === "http:" && sensitive.some(w => input.includes(w))) {
+      risk += 40;
+      findings.push("Sensitive keyword found in non-secure (HTTP) URL");
+    }
+
+    // Check 6: URL Shorteners (Basic check)
+    const shorteners = ["bit.ly", "goo.gl", "tinyurl.com", "t.co", "is.gd"];
+    if (shorteners.includes(url.hostname)) {
+      risk += 5;
+      findings.push("URL shortener detected");
+    }
+
+     // Check 7: @ symbol (Obfuscation)
+     if (input.includes("@")) {
+      risk += 30;
+      findings.push("URL authentication obfuscation detected (@ symbol)");
+    }
+
+    agent.progress = 100;
+    agent.status = "complete";
+    
+    if (risk > 0) {
+      result.overallRisk += risk;
+      result.findings.push({
+        agent: agent.name,
+        type: risk > 30 ? "critical" : "warning",
+        message: "Heuristic anomalies detected",
+        details: findings.join(", "),
+      });
+      agent.result = `${findings.length} anomalies found`;
+    } else {
+       result.findings.push({
+        agent: agent.name,
+        type: "info",
+        message: "No heuristic anomalies detected",
+      });
+      agent.result = "Clean";
+    }
+
+  } catch (err) {
+    agent.status = "error";
+    // If invalid URL, high risk
+    result.overallRisk += 10;
+     result.findings.push({
+      agent: agent.name,
+      type: "warning",
+      message: "Invalid URL format",
     });
   }
 }

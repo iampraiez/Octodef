@@ -59,6 +59,7 @@ export async function analyzeThreat(
     await runKeywordAgent(result, parsedEmail);
     await runHeaderAgent(result, parsedEmail);
     await runMLAgent(result);
+    await runContentHeuristicAgent(result, parsedEmail);
     await runHashIntelAgent(result, parsedEmail);
 
     calculateFinalRisk(result);
@@ -522,6 +523,52 @@ function generateRemediationSteps(
   result.remediationSteps = ["1. QUARANTINE EMAIL", "2. BLOCK SENDER"];
   if (result.severity === "critical") {
     result.remediationSteps.push("3. IMMEDIATE ALERT", "4. SCAN NETWORK");
+  }
+}
+
+async function runContentHeuristicAgent(
+  result: Omit<DefenseResult, "timestamp" | "_id" | "userId">,
+  email: ParsedMail
+) {
+  const agent: AgentStatus = {
+    id: "content-heuristics",
+    name: "Content Heuristics",
+    description: "Style & obfuscation analysis",
+    status: "complete",
+    progress: 100,
+  };
+  result.agents.push(agent);
+  addTimelineEvent(result, "Content heuristics complete", agent.name);
+
+  const body = ((email.text || "") + " " + (email.html || ""));
+  let score = 0;
+  const findings: string[] = [];
+
+  // 1. Excessive Capitalization
+  const cleanBody = body.replace(/[^a-zA-Z\s]/g, "");
+  if (cleanBody.length > 50) {
+      const caps = cleanBody.replace(/[^A-Z]/g, "").length;
+      if (caps / cleanBody.length > 0.4) {
+          score += 15;
+          findings.push("Excessive capitalization detected");
+      }
+  }
+
+  // 2. Excessive Punctuation
+  const exclamationCount = (body.match(/!/g) || []).length;
+  if (exclamationCount > 10) {
+      score += 10;
+      findings.push("Excessive exclamation marks");
+  }
+
+  if (score > 0) {
+      result.overallRisk += score;
+      result.findings.push({
+          agent: agent.name,
+          type: score > 20 ? "critical" : "warning",
+          message: "Content anomalies detected",
+          details: findings.join(", "),
+      });
   }
 }
 

@@ -6,6 +6,7 @@ import { Session } from "@/types/types";
 import { analyzeThreat } from "@/lib/defense_orcestrator";
 import { ObjectId } from "mongodb";
 import { getCollections } from "@/lib/db";
+import { rateLimit } from "@/lib/rateLimit";
 
 export async function GET() {
   try {
@@ -27,26 +28,54 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for") || "unknown";
+  
+  // Rate limiting: 10 requests per minute per IP
+  if (!rateLimit(ip, { interval: 60 * 1000, limit: 10 })) {
+     return NextResponse.json(
+      { error: "Too many requests. Please try again later." },
+      { status: 429 }
+    );
+  }
+
   try {
     const { data, type } = await req.json();
-    const { user } = (await auth()) as Session;
-    if (!user)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const resultData = await analyzeThreat(data, type);
+    const session = (await auth()) as Session | null;
+    const userEmail = session?.user?.email || null;
 
-    const { defenseResultCollection } = await getCollections();
-    const response = await defenseResultCollection.insertOne({
-      ...resultData,
-      timestamp: new Date().toISOString(),
-      userId: user.email,
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          const finalResult = await analyzeThreat(data, type, (progress) => {
+             const chunk = JSON.stringify(progress) + "\n";
+             controller.enqueue(encoder.encode(chunk));
+          });
+
+          const { defenseResultCollection } = await getCollections();
+          await defenseResultCollection.insertOne({
+            ...finalResult,
+            timestamp: new Date().toISOString(),
+            userId: userEmail || '',
+          });
+          
+          // Send final "complete" state if needed, though onProgress probably covered it
+          // Use a special "done" marker or just ensure the last onProgress was complete
+          controller.close();
+        } catch (err) {
+          controller.error(err);
+        }
+      },
     });
 
-    return NextResponse.json({
-      ...resultData,
-      timestamp: new Date().toISOString(),
-      userId: user.email,
-      _id: response.insertedId,
+    return new Response(stream, {
+        headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Transfer-Encoding": "chunked",
+            "X-Content-Type-Options": "nosniff",
+        }
     });
+
   } catch {
     return NextResponse.json(
       { error: "Internal Server Error" },

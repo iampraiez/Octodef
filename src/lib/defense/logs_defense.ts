@@ -300,6 +300,7 @@ export async function analyzeThreat(
     }
 
     await runZodValidationAgent(result, logEntries);
+    await runSignatureAgent(result, logEntries);
     await runTimePatternAgent(result, logEntries);
     await runRateLimitAgent(result, logEntries);
     await runErrorPatternAgent(result, logEntries);
@@ -482,6 +483,58 @@ async function runZodValidationAgent(
     });
   }
 }
+
+async function runSignatureAgent(
+  result: Omit<DefenseResult, "timestamp" | "_id" | "userId">,
+  logEntries: ValidLogEntry[]
+) {
+  const agent: AgentStatus = {
+    id: "log-signatures",
+    name: "Attack Signatures",
+    description: "SQLi, XSS, and exploit pattern matching",
+    status: "processing",
+    progress: 0,
+  };
+  result.agents.push(agent);
+  addTimelineEvent(result, "Signature analysis started", agent.name);
+
+  const patterns = [
+    { name: "SQL Injection", regex: /(\bunion\b.*\bselect\b|\bselect\b.*\bfrom\b|\bor\b\s+['"]?1['"]?\s*=\s*['"]?1|--|#)/i },
+    { name: "XSS", regex: /(<script|javascript:|on\w+\s*=)/i },
+    { name: "Path Traversal", regex: /(\.\.\/|\.\.\\)/ },
+    { name: "Command Injection", regex: /(;\s*\/bin\/sh|\|\s*bash|\$\(|\`)/ },
+  ];
+
+  let hits = 0;
+  logEntries.forEach(entry => {
+    // Check all string fields
+    const content = [entry.endpoint, entry.userAgent, JSON.stringify(entry)].join(" ");
+    patterns.forEach(p => {
+      if (p.regex.test(content)) {
+        hits++;
+        result.findings.push({
+           agent: agent.name,
+           type: "critical",
+           message: `Detected ${p.name}`,
+           details: `In log from ${entry.ip} at ${entry.timestamp}`
+        });
+      }
+    });
+  });
+
+  agent.progress = 100;
+  agent.status = "complete";
+
+  if (hits > 0) {
+     result.overallRisk += hits * 20;
+  } else {
+     result.findings.push({
+      agent: agent.name,
+      type: "info",
+      message: "No attack signatures found",
+    });
+  }
+}    
 
 async function runTimePatternAgent(
   result: Omit<DefenseResult, "timestamp" | "_id" | "userId">,
